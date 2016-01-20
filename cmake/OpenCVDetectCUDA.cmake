@@ -10,19 +10,10 @@ endif()
 
 set(CMAKE_MODULE_PATH "${OpenCV_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
-foreach(var INCLUDE LIBRARY PROGRAM)
-  set(__old_frpm_${var} "${CMAKE_FIND_ROOT_PATH_MODE_${var}}")
-endforeach()
-
-set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
-set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)
-
-find_package(CUDA "${MIN_VER_CUDA}" QUIET)
-
-foreach(var INCLUDE LIBRARY PROGRAM)
-  set(CMAKE_FIND_ROOT_PATH_MODE_${var} "${__old_frpm_${var}}")
-endforeach()
+if(ANDROID)
+  set(CUDA_TARGET_OS_VARIANT "Android")
+endif()
+find_host_package(CUDA "${MIN_VER_CUDA}" QUIET)
 
 list(REMOVE_AT CMAKE_MODULE_PATH 0)
 
@@ -88,12 +79,17 @@ if(CUDA_FOUND)
   endif()
 
   if(NOT DEFINED __cuda_arch_bin)
-    if(ANDROID)
+    if(ARM)
       set(__cuda_arch_bin "3.2")
+      set(__cuda_arch_ptx "")
+    elseif(AARCH64)
+      set(__cuda_arch_bin "5.3")
       set(__cuda_arch_ptx "")
     else()
       if(${CUDA_VERSION} VERSION_LESS "5.0")
         set(__cuda_arch_bin "1.1 1.2 1.3 2.0 2.1(2.0) 3.0")
+      elseif(${CUDA_VERSION} VERSION_GREATER "6.5")
+        set(__cuda_arch_bin "2.0 2.1(2.0) 3.0 3.5")
       else()
         set(__cuda_arch_bin "1.1 1.2 1.3 2.0 2.1(2.0) 3.0 3.5")
       endif()
@@ -152,7 +148,6 @@ if(CUDA_FOUND)
 
   if(ANDROID)
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-Xptxas;-dlcm=ca")
-    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-target-os-variant=Android")
   endif()
 
   message(STATUS "CUDA NVCC target flags: ${CUDA_NVCC_FLAGS}")
@@ -188,6 +183,8 @@ if(CUDA_FOUND)
       # we remove -frtti because it's used for C++ compiler
       # but NVCC uses C compiler by default
       string(REPLACE "-frtti" "" ${var} "${${var}}")
+
+      string(REPLACE "-fvisibility-inlines-hidden" "" ${var} "${${var}}")
     endforeach()
 
     if(BUILD_SHARED_LIBS)
@@ -199,6 +196,10 @@ if(CUDA_FOUND)
     endif()
     if(APPLE)
       set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xcompiler -fno-finite-math-only)
+    endif()
+
+    if(CMAKE_CROSSCOMPILING AND (ARM OR AARCH64))
+      set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xlinker --unresolved-symbols=ignore-in-shared-libs)
     endif()
 
     # disabled because of multiple warnings during building nvcc auto generated files

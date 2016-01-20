@@ -50,6 +50,7 @@ using namespace cv;
 
 int test_loop_times = 1; // TODO Read from command line / environment
 
+#ifdef HAVE_OPENCL
 
 #define DUMP_PROPERTY_XML(propertyName, propertyValue) \
     do { \
@@ -97,6 +98,13 @@ void dumpOpenCLDevice()
 
     try
     {
+        if (!useOpenCL())
+        {
+            DUMP_MESSAGE_STDOUT("OpenCL is disabled");
+            DUMP_PROPERTY_XML("cv_ocl", "disabled");
+            return;
+        }
+
         std::vector<PlatformInfo> platforms;
         cv::ocl::getPlatfomsInfo(platforms);
         if (platforms.size() > 0)
@@ -127,6 +135,9 @@ void dumpOpenCLDevice()
         }
 
         const Device& device = Device::getDefault();
+        if (!device.available())
+            CV_ErrorNoReturn(CV_OpenCLInitError, "OpenCL device is not available");
+
         DUMP_MESSAGE_STDOUT("Current OpenCL device: ");
 
 #if 0
@@ -204,6 +215,7 @@ void dumpOpenCLDevice()
 #undef DUMP_MESSAGE_STDOUT
 #undef DUMP_PROPERTY_XML
 
+#endif
 
 Mat TestUtils::readImage(const String &fileName, int flags)
 {
